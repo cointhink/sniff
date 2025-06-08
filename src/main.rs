@@ -56,9 +56,25 @@ async fn main() {
     };
 
     let reader = async move {
+        let mut rx_byte_count = 0;
+        let mut rx_msg_count = 0;
+        let mut now = std::time::Instant::now();
         while let Some(message) = rx.try_next().await.unwrap() {
             if let Message::Text(text) = message {
-                println!("{}", text);
+                rx_byte_count += text.len();
+                rx_msg_count += 1;
+                // println!("{}", text);
+            }
+            let duration = now.elapsed();
+            log::info!(
+                "elapsed {:?}. {:?} msg/sec. {:?} kb/sec",
+                duration,
+                (rx_msg_count as f32) / (duration.as_millis() as f32 / 1000.0),
+                (rx_byte_count as f32 / 1024.0) / (duration.as_millis() as f32 / 1000.0)
+            );
+            if duration.as_secs() > 10 {
+                now = std::time::Instant::now();
+                rx_byte_count = 0;
             }
         }
     };
