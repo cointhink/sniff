@@ -6,12 +6,17 @@ mod rpc;
 mod timer;
 mod ws;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
-    let config = config::setup(config::FILENAME);
+    config::setup(config::FILENAME);
     log::info!("scoop loaded {}", config::path(config::FILENAME));
 
+    async_main();
+}
+
+#[tokio::main]
+async fn async_main() {
+    let config = config::CONFIG.get().unwrap();
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
 
     subscribe(&mut tx, "newPendingTransactions").await;
