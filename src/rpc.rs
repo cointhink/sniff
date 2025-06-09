@@ -27,3 +27,12 @@ impl<'a> RpcCall<'a> {
         String::from_utf8(buf.to_vec()).unwrap()
     }
 }
+
+pub fn call(method: &str, params: Vec<&serde_json::Value>) -> String {
+    let jparams: Vec<serde_json::Value> = params
+        .iter()
+        .map(|x| serde_json::to_value(x).unwrap())
+        .collect();
+    let call = RpcCall::new(method, jparams);
+    serde_json::to_string(&call).unwrap()
+}

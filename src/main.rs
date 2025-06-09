@@ -14,16 +14,15 @@ async fn main() {
 
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
     let sender = async move {
-        let rpc_subscribe = rpc::RpcCall::new(
+        let rpc_sub_json = rpc::call(
             "eth_subscribe",
             vec![
-                serde_json::Value::String("newPendingTransactions".into()),
-                serde_json::Value::Bool(true),
+                &serde_json::Value::String("newPendingTransactions".into()),
+                &serde_json::Value::Bool(true),
             ],
         );
-        let cmd = serde_json::to_string(&rpc_subscribe).unwrap();
-        log::info!("{}", cmd);
-        tx.send(Message::Text(cmd)).await.unwrap();
+        log::info!("{}", rpc_sub_json);
+        tx.send(Message::Text(rpc_sub_json)).await.unwrap();
     };
 
     let reader = async move {

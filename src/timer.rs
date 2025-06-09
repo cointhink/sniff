@@ -32,7 +32,7 @@ impl Timer {
     }
     pub fn reset_after_seconds(self: &mut Self, seconds: usize) {
         let duration = self.now.elapsed();
-        if duration.as_secs() > seconds {
+        if duration.as_secs() > seconds as u64 {
             self.now = std::time::Instant::now();
             self.rx_byte_count = 0;
         }
