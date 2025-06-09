@@ -8,8 +8,9 @@ mod ws;
 #[tokio::main]
 async fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
-    let config: config::Config = config::read_type(config::FILENAME);
-    log::info!("scoop {}", config.geth_url);
+    let config = config::setup(config::FILENAME);
+    log::info!("scoop loaded {}", config::path(config::FILENAME));
+
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
     let rpc_subscribe = rpc::RpcCall::new(
         "eth_subscribe",
