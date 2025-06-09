@@ -1,5 +1,5 @@
-use futures_util::{SinkExt, TryStreamExt};
-use reqwest_websocket::Message;
+use futures_util::{SinkExt, TryStreamExt, stream::SplitSink};
+use reqwest_websocket::{Message, WebSocket};
 
 mod config;
 mod rpc;
@@ -13,30 +13,28 @@ async fn main() {
     log::info!("scoop loaded {}", config::path(config::FILENAME));
 
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
-    let sender = async move {
-        let rpc_sub_json = rpc::call(
-            "eth_subscribe",
-            vec![
-                &serde_json::Value::String("newPendingTransactions".into()),
-                &serde_json::Value::Bool(true),
-            ],
-        );
-        log::info!("{}", rpc_sub_json);
-        tx.send(Message::Text(rpc_sub_json)).await.unwrap();
-    };
 
-    let reader = async move {
-        let mut timer = timer::new();
+    subscribe(&mut tx, "newPendingTransactions").await;
+    let mut timer = timer::Timer::new();
 
-        while let Some(message) = rx.try_next().await.unwrap() {
-            if let Message::Text(text) = message {
-                timer.next_msg(text.len());
-                // println!("{}", text);
-            }
-            timer.report();
-            timer.reset_after_seconds(10);
+    while let Some(message) = rx.try_next().await.unwrap() {
+        if let Message::Text(text) = message {
+            timer.next_msg(text.len());
+            // println!("{}", text);
         }
-    };
+        timer.report();
+        timer.reset_after_seconds(10);
+    }
+}
 
-    futures_util::future::join(sender, reader).await;
+pub async fn subscribe(tx: &mut SplitSink<WebSocket, Message>, topic: &str) {
+    let rpc_sub_json = rpc::call(
+        "eth_subscribe",
+        vec![
+            &serde_json::Value::String(topic.into()),
+            &serde_json::Value::Bool(true),
+        ],
+    );
+    log::info!("{}", rpc_sub_json);
+    tx.send(Message::Text(rpc_sub_json)).await.unwrap();
 }
