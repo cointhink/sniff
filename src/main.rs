@@ -1,10 +1,19 @@
-use std::time::Duration;
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
-use ratatui::{Frame, style::Stylize, text};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Layout},
+    style::Stylize,
+    text::{self},
+    widgets::{Row, Table},
+};
 use reqwest_websocket::{Message, WebSocket};
-use tokio::{sync::mpsc, time};
+use tokio::time;
 
 mod config;
 mod rpc;
@@ -22,7 +31,6 @@ fn main() {
 #[tokio::main]
 async fn async_main() {
     let mut terminal = ratatui::init();
-    let (tui_tx, mut tui_rx) = mpsc::channel::<String>(10);
     let mut reader = EventStream::new();
 
     let mut interval = time::interval(Duration::from_secs(1));
@@ -32,6 +40,8 @@ async fn async_main() {
 
     subscribe(&mut tx, "newPendingTransactions").await;
     let mut timer = timer::Timer::new();
+
+    let state = Arc::<RwLock<Vec<String>>>::default();
 
     let mut stop = false;
     while !stop {
@@ -43,14 +53,17 @@ async fn async_main() {
                 }
             }
 
-             _ = interval.tick() => { terminal.draw(|frame| render(frame)); },
+             _ = interval.tick() => {
+                 terminal.draw(|frame| render(frame, &state, &timer)).unwrap();
+             },
 
             Some(message) = rx.next() => {
                if let Message::Text(text) = message.unwrap() {
                   timer.next_msg(text.len());
-                   // println!("{}", text);
+                  let mut rows = state.write().unwrap();
+                  rows.push(text);
                }
-             timer.report();
+             terminal.draw(|frame| render(frame, &state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
         }
@@ -58,10 +71,31 @@ async fn async_main() {
     ratatui::restore()
 }
 
-fn render(frame: &mut Frame) {
-    let title = text::Line::from("Ratatui async example").centered().bold();
-    let title_area = frame.area();
+fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<std::string::String>>>, timer: &timer::Timer) {
+    let lines = state.read().unwrap();
+    let times = timer.report();
+    let title = text::Line::from(format!(
+        "{} unconfirmed eth blocks. {} kb/sec {} msg/sec",
+        lines.len(),
+        times.0,
+        times.1
+    ))
+    .centered()
+    .bold();
+    let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
+    let [title_area, body_area] = vertical.areas(frame.area());
+
+    let last_bit = lines.len().saturating_sub(body_area.height as usize);
+    let rows = lines[last_bit..]
+        .iter()
+        .map(|x| Row::new(vec![x.as_str()]))
+        .collect::<Vec<Row>>();
+
+    let widths = [Constraint::Max(body_area.width)];
+    let table = Table::new(rows, widths);
+
     frame.render_widget(title, title_area);
+    frame.render_widget(table, body_area);
 }
 
 fn key_in(event: Event) -> String {

@@ -1,6 +1,7 @@
 /config.yaml
 /.jj/
 /target/
+/logs/
 /tmp/
 /Cargo.lock
 /logs

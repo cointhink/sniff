@@ -20,16 +20,13 @@ impl Timer {
         self.rx_msg_count += 1;
     }
 
-    pub fn report(self: &mut Self) {
-        let duration = self.now.elapsed();
+    pub fn report(self: &Self) -> (f64, f64) {
         let duration_ms10 = self.now.elapsed().as_millis() + 1;
-        log::info!(
-            "elapsed {:.3}sec {:?} msg/sec. {:?} kbytes/sec",
-            duration.as_secs_f32(),
-            (self.rx_msg_count * 1000).div_ceil(duration_ms10) as f64 / 10.0,
-            (self.rx_byte_count).div_ceil(duration_ms10) as f64 / 10.0
-        );
+        let kb_sec = (self.rx_msg_count * 1000).div_ceil(duration_ms10) as f64 / 10.0;
+        let msg_sec = (self.rx_byte_count).div_ceil(duration_ms10) as f64 / 10.0;
+        (kb_sec, msg_sec)
     }
+
     pub fn reset_after_seconds(self: &mut Self, seconds: usize) {
         let duration = self.now.elapsed();
         if duration.as_secs() > seconds as u64 {
