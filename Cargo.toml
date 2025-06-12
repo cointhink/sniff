@@ -1,17 +1,19 @@
 [package]
-name = "scoop"
+name = "sniff"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 once_cell = "1.21.3"
-serde = {version = "1.0", features = ["derive"]}
+serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9.34"
 serde_json = "1.0"
 fastrand = "2.3.0"
 log = "0.4.27"
-log4rs = {version = "1.3.0", features = ["console_appender", "file_appender"]}
+log4rs = { version = "1.3.0", features = ["console_appender", "file_appender"] }
 futures-util = "0.3.31"
-tokio = {version = "1.45.1", features = ["full"]}
+tokio = { version = "1.45.1", features = ["full"] }
 reqwest = "0.12.19"
 reqwest-websocket = "0.5.0"
+ratatui = "*"
+crossterm = { version = "0.28.1", features = ["event-stream"]}
