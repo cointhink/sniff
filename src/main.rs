@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use alloy_primitives::utils::format_units;
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use ratatui::{
@@ -13,6 +14,7 @@ use ratatui::{
     widgets::{Row, Table},
 };
 use reqwest_websocket::{Message, WebSocket};
+use timer::Timer;
 use tokio::time;
 
 mod config;
@@ -58,11 +60,7 @@ async fn async_main() {
              },
 
             Some(message) = rx.next() => {
-               if let Message::Text(text) = message.unwrap() {
-                  timer.next_msg(text.len());
-                  let mut rows = ui_state.write().unwrap();
-                  rows.push(text);
-               }
+             select_message(&mut timer,&ui_state, message);
              terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
@@ -71,11 +69,55 @@ async fn async_main() {
     ratatui::restore()
 }
 
+#[derive(serde::Deserialize)]
+struct RpcResponse {
+    params: Option<RpcParams>,
+}
+#[derive(serde::Deserialize)]
+struct RpcParams {
+    result: UnconfirmedTx,
+}
+#[derive(serde::Deserialize)]
+struct UnconfirmedTx {
+    from: String,
+    to: String,
+    value: String,
+}
+impl UnconfirmedTx {
+    fn to_string(self: &Self) -> String {
+        let value_wei = u128::from_str_radix(&self.value[2..], 16).unwrap();
+        format!(
+            "{} {} {}",
+            self.from,
+            self.to,
+            format_units(value_wei, 18).unwrap()
+        )
+    }
+}
+
+fn select_message(
+    timer: &mut Timer,
+    ui_state: &Arc<RwLock<Vec<String>>>,
+    message: Result<Message, reqwest_websocket::Error>,
+) {
+    if let Message::Text(text) = message.unwrap() {
+        timer.next_msg(text.len());
+        let rpc_response = serde_json::from_str::<RpcResponse>(&text).unwrap(); //RpcResponse
+        match rpc_response.params {
+            Some(params) => {
+                let mut rows = ui_state.write().unwrap();
+                rows.push(params.result.to_string());
+            }
+            None => (),
+        }
+    }
+}
+
 fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<std::string::String>>>, timer: &timer::Timer) {
     let lines = state.read().unwrap();
     let times = timer.report();
     let title = text::Line::from(format!(
-        "{} unconfirmed eth blocks. {} kb/sec {} msg/sec",
+        "{} unconfirmed eth transactions. {} kb/sec {} msg/sec",
         lines.len(),
         times.0,
         times.1

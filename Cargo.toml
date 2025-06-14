@@ -17,3 +17,4 @@ reqwest = "0.12.19"
 reqwest-websocket = "0.5.0"
 ratatui = "*"
 crossterm = { version = "0.28.1", features = ["event-stream"]}
+alloy-primitives = "*"
