@@ -41,7 +41,7 @@ async fn async_main() {
     subscribe(&mut tx, "newPendingTransactions").await;
     let mut timer = timer::Timer::new();
 
-    let state = Arc::<RwLock<Vec<String>>>::default();
+    let ui_state = Arc::<RwLock<Vec<String>>>::default();
 
     let mut stop = false;
     while !stop {
@@ -54,16 +54,16 @@ async fn async_main() {
             }
 
              _ = interval.tick() => {
-                 terminal.draw(|frame| render(frame, &state, &timer)).unwrap();
+                 terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              },
 
             Some(message) = rx.next() => {
                if let Message::Text(text) = message.unwrap() {
                   timer.next_msg(text.len());
-                  let mut rows = state.write().unwrap();
+                  let mut rows = ui_state.write().unwrap();
                   rows.push(text);
                }
-             terminal.draw(|frame| render(frame, &state, &timer)).unwrap();
+             terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
         }
