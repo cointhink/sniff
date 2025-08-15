@@ -3,6 +3,7 @@ all:
 run:
 	cargo run
 push:
-	jj bookmark set main -r @-
 	jj git push --allow-new -c @-
+	jj bookmark set main -r @-
+	jj git push --bookmark main
 
