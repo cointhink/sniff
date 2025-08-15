@@ -82,7 +82,7 @@ struct RpcParams {
 #[derive(serde::Deserialize)]
 struct UnconfirmedTx {
     from: String,
-    to: String,
+    to: Option<String>,
     value: String,
     input: String,
 }
@@ -90,9 +90,9 @@ impl UnconfirmedTx {
     fn to_string(self: &Self) -> String {
         let value_wei = u128::from_str_radix(&self.value[2..], 16).unwrap();
         format!(
-            "{} {} {} {}",
+            "{:42} {:42} {:5} {:8}",
             self.from,
-            self.to,
+            self.to.clone().unwrap_or("- contract-creation".to_string()),
             format_units(value_wei, 18).unwrap()[0..5].to_string(),
             if self.input.len() > 2 {
                 self.input[..8].to_string()
