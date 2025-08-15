@@ -1,6 +1,6 @@
 use std::{
     sync::{Arc, RwLock},
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use alloy_primitives::utils::format_units;
@@ -84,15 +84,21 @@ struct UnconfirmedTx {
     from: String,
     to: String,
     value: String,
+    input: String,
 }
 impl UnconfirmedTx {
     fn to_string(self: &Self) -> String {
         let value_wei = u128::from_str_radix(&self.value[2..], 16).unwrap();
         format!(
-            "{} {} {}",
+            "{} {} {} {}",
             self.from,
             self.to,
-            format_units(value_wei, 18).unwrap()
+            format_units(value_wei, 18).unwrap()[0..5].to_string(),
+            if self.input.len() > 2 {
+                self.input[..8].to_string()
+            } else {
+                "".to_string()
+            },
         )
     }
 }
@@ -104,7 +110,9 @@ fn select_message(
 ) {
     if let Message::Text(text) = message.unwrap() {
         timer.next_msg(text.len());
-        let rpc_response = serde_json::from_str::<RpcResponse>(&text).unwrap(); //RpcResponse
+        let rpc_response = serde_json::from_str::<RpcResponse>(&text)
+            .or_else(|_| -> Result<_, String> { panic!("{}", text) })
+            .unwrap(); //RpcResponse
         match rpc_response.params {
             Some(params) => {
                 let mut rows = ui_state.write().unwrap();
@@ -127,8 +135,8 @@ fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<AppStateItem>>>, timer: &tim
     .centered()
     .bold();
     let headers = text::Line::from(format!(
-        "{:5} {:42} {:42} {:10}",
-        "age", "to", "from", "eth"
+        "{:5} {:42} {:42} {:5} {:8}",
+        "age", "to", "from", "eth", "call"
     ));
     let vertical = Layout::vertical([
         Constraint::Length(1),
