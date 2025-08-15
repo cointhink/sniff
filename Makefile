@@ -5,5 +5,5 @@ run:
 push:
 	jj git push --allow-new -c @-
 	jj bookmark set main -r @-
-	jj git push --bookmark main
+	jj git push --allow-new --bookmark main
 
