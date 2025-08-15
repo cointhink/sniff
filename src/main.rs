@@ -1,6 +1,6 @@
 use std::{
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use alloy_primitives::utils::format_units;
@@ -21,6 +21,8 @@ mod config;
 mod rpc;
 mod timer;
 mod ws;
+
+type AppStateItem = (Instant, UnconfirmedTx);
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
@@ -43,7 +45,7 @@ async fn async_main() {
     subscribe(&mut tx, "newPendingTransactions").await;
     let mut timer = timer::Timer::new();
 
-    let ui_state = Arc::<RwLock<Vec<String>>>::default();
+    let ui_state = Arc::<RwLock<Vec<AppStateItem>>>::default();
 
     let mut stop = false;
     while !stop {
@@ -97,7 +99,7 @@ impl UnconfirmedTx {
 
 fn select_message(
     timer: &mut Timer,
-    ui_state: &Arc<RwLock<Vec<String>>>,
+    ui_state: &Arc<RwLock<Vec<AppStateItem>>>,
     message: Result<Message, reqwest_websocket::Error>,
 ) {
     if let Message::Text(text) = message.unwrap() {
@@ -106,37 +108,52 @@ fn select_message(
         match rpc_response.params {
             Some(params) => {
                 let mut rows = ui_state.write().unwrap();
-                rows.push(params.result.to_string());
+                rows.push((Instant::now(), params.result));
             }
             None => (),
         }
     }
 }
 
-fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<std::string::String>>>, timer: &timer::Timer) {
-    let lines = state.read().unwrap();
+fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<AppStateItem>>>, timer: &timer::Timer) {
+    let items = state.read().unwrap();
     let times = timer.report();
     let title = text::Line::from(format!(
         "{} unconfirmed eth transactions. {} kb/sec {} msg/sec",
-        lines.len(),
+        items.len(),
         times.0,
         times.1
     ))
     .centered()
     .bold();
-    let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
-    let [title_area, body_area] = vertical.areas(frame.area());
+    let headers = text::Line::from(format!(
+        "{:5} {:42} {:42} {:10}",
+        "age", "to", "from", "eth"
+    ));
+    let vertical = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+    ]);
+    let [title_area, header_area, body_area] = vertical.areas(frame.area());
 
-    let last_bit = lines.len().saturating_sub(body_area.height as usize);
-    let rows = lines[last_bit..]
+    let last_bit = items.len().saturating_sub(body_area.height as usize);
+    let rows = items[last_bit..]
         .iter()
-        .map(|x| Row::new(vec![x.as_str()]))
+        .map(|item| {
+            Row::new(vec![format!(
+                "{:.3} {}",
+                Instant::now().duration_since(item.0).as_millis() as f64 / 1000.0,
+                item.1.to_string()
+            )])
+        })
         .collect::<Vec<Row>>();
 
     let widths = [Constraint::Max(body_area.width)];
     let table = Table::new(rows, widths);
 
     frame.render_widget(title, title_area);
+    frame.render_widget(headers, header_area);
     frame.render_widget(table, body_area);
 }
 
