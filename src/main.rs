@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_primitives::utils::format_units;
+use alloy_primitives::{U256, utils::format_units};
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use ratatui::{
@@ -68,7 +68,7 @@ async fn async_main() {
             }
         }
     }
-    ratatui::restore()
+    // ratatui::restore()
 }
 
 #[derive(serde::Deserialize)]
@@ -94,13 +94,42 @@ impl UnconfirmedTx {
             self.from,
             self.to.clone().unwrap_or("- contract-creation".to_string()),
             format_units(value_wei, 18).unwrap()[0..5].to_string(),
-            if self.input.len() > 2 {
-                self.input[..8].to_string()
-            } else {
-                "".to_string()
-            },
+            match_fn_signature(&self.input),
         )
     }
+}
+
+fn match_fn_signature(hex_sig: &str) -> String {
+    // U256::from_be_slice(&hex::decode(hex_sig[8..40].to_string()).unwrap());
+    if hex_sig.len() >= 10 {
+        match &hex_sig[0..10] {
+            "0xa9059cbb" => {
+                // erc20 transfer(address,uint256)
+                let wei = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
+                format!(
+                    "erc20 xfer {}",
+                    format_units(wei, "eth").unwrap()[0..5].to_string()
+                )
+            }
+            _ => hex_sig.to_string(),
+        }
+    } else {
+        hex_sig.to_string()
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_match_fn_signature() {
+    use alloy_primitives::hex;
+
+    let selector = "0xa9059cbb";
+    let param1 = hex::encode::<[u8; 32]>(U256::from(1).to_be_bytes());
+    let param2 = hex::encode::<[u8; 32]>(U256::from(10_u128.pow(18)).to_be_bytes());
+    assert_eq!(
+        match_fn_signature(&format!("{}{}{}", selector, param1, param2)),
+        "erc20 xfer 1.000"
+    );
 }
 
 fn select_message(
