@@ -43,6 +43,7 @@ async fn async_main() {
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
 
     subscribe(&mut tx, "newPendingTransactions").await;
+    subscribe(&mut tx, "newHeads").await;
     let mut timer = timer::Timer::new();
 
     let ui_state = Arc::<RwLock<Vec<AppStateItem>>>::default();
@@ -76,8 +77,18 @@ struct RpcResponse {
     params: Option<RpcParams>,
 }
 #[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RxMsgs {
+    UnconfirmedTx(UnconfirmedTx),
+    NewHeader(NewHeader),
+}
+#[derive(serde::Deserialize)]
 struct RpcParams {
-    result: UnconfirmedTx,
+    result: RxMsgs,
+}
+#[derive(serde::Deserialize)]
+struct NewHeader {
+    number: String,
 }
 #[derive(serde::Deserialize)]
 struct UnconfirmedTx {
@@ -139,13 +150,24 @@ fn select_message(
 ) {
     if let Message::Text(text) = message.unwrap() {
         timer.next_msg(text.len());
+        log::logger().log(
+            &log::Record::builder()
+                .target("http")
+                .args(format_args!("{}", text))
+                .build(),
+        ); // this is a lot for one call to the logger
         let rpc_response = serde_json::from_str::<RpcResponse>(&text)
             .or_else(|_| -> Result<_, String> { panic!("{}", text) })
             .unwrap(); //RpcResponse
         match rpc_response.params {
             Some(params) => {
-                let mut rows = ui_state.write().unwrap();
-                rows.push((Instant::now(), params.result));
+                match params.result {
+                    RxMsgs::UnconfirmedTx(tx) => {
+                        let mut rows = ui_state.write().unwrap();
+                        rows.push((Instant::now(), tx));
+                    }
+                    RxMsgs::NewHeader(header) => log::info!("block: {}", header.number),
+                };
             }
             None => (),
         }
@@ -214,13 +236,13 @@ fn key_in(event: Event) -> String {
 }
 
 pub async fn subscribe(tx: &mut SplitSink<WebSocket, Message>, topic: &str) {
-    let rpc_sub_json = rpc::call(
-        "eth_subscribe",
-        vec![
-            &serde_json::Value::String(topic.into()),
-            &serde_json::Value::Bool(true),
-        ],
-    );
+    let topic = serde_json::Value::String(topic.to_string());
+    let full_tx = serde_json::Value::Bool(true);
+    let mut params = vec![&topic];
+    if topic == "newPendingTransactions" {
+        params.push(&full_tx);
+    };
+    let rpc_sub_json = rpc::call("eth_subscribe", params);
     log::info!("{}", rpc_sub_json);
     tx.send(Message::Text(rpc_sub_json)).await.unwrap();
 }

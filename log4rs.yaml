@@ -15,7 +15,7 @@ appenders:
 root:
   level: info
   appenders:
-    - stdout
+    #    - stdout
     - stdlog
 
 loggers:
