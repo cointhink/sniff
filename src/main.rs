@@ -4,7 +4,10 @@ use std::{
 };
 
 use alloy_primitives::{U256, utils::format_units};
-use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
+use crossterm::{
+    event::{Event, EventStream, KeyCode, KeyModifiers},
+    terminal::disable_raw_mode,
+};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use ratatui::{
     Frame,
@@ -22,7 +25,7 @@ mod rpc;
 mod timer;
 mod ws;
 
-type AppStateItem = (Instant, UnconfirmedTx);
+type AppStateItem = (Instant, RxMsgs);
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
@@ -69,7 +72,7 @@ async fn async_main() {
             }
         }
     }
-    // ratatui::restore()
+    disable_raw_mode().unwrap(); // ratatui::restore()
 }
 
 #[derive(serde::Deserialize)]
@@ -82,6 +85,15 @@ enum RxMsgs {
     UnconfirmedTx(UnconfirmedTx),
     NewHeader(NewHeader),
 }
+impl RxMsgs {
+    fn to_string(self: &Self) -> String {
+        match self {
+            RxMsgs::UnconfirmedTx(tx) => tx.to_string(),
+            RxMsgs::NewHeader(header) => header.to_string(),
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct RpcParams {
     result: RxMsgs,
@@ -89,6 +101,14 @@ struct RpcParams {
 #[derive(serde::Deserialize)]
 struct NewHeader {
     number: String,
+}
+impl NewHeader {
+    fn to_string(self: &Self) -> String {
+        format!("Block {}", self.number())
+    }
+    fn number(self: &Self) -> U256 {
+        U256::from_str_radix(&self.number[2..], 16).unwrap()
+    }
 }
 #[derive(serde::Deserialize)]
 struct UnconfirmedTx {
@@ -157,17 +177,16 @@ fn select_message(
                 .build(),
         ); // this is a lot for one call to the logger
         let rpc_response = serde_json::from_str::<RpcResponse>(&text)
-            .or_else(|_| -> Result<_, String> { panic!("{}", text) })
+            .or_else(|err| -> Result<_, String> { panic!("{} {}", err, text) })
             .unwrap(); //RpcResponse
         match rpc_response.params {
             Some(params) => {
-                match params.result {
-                    RxMsgs::UnconfirmedTx(tx) => {
-                        let mut rows = ui_state.write().unwrap();
-                        rows.push((Instant::now(), tx));
-                    }
-                    RxMsgs::NewHeader(header) => log::info!("block: {}", header.number),
+                let mut rows = ui_state.write().unwrap();
+                match &params.result {
+                    RxMsgs::UnconfirmedTx(_tx) => {}
+                    RxMsgs::NewHeader(_header) => {}
                 };
+                rows.push((Instant::now(), params.result));
             }
             None => (),
         }
