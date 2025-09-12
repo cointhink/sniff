@@ -1,18 +1,8 @@
-use std::{
-    sync::{Arc, RwLock},
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use alloy_primitives::{U256, utils::format_units};
 use crossterm::terminal::disable_raw_mode;
 use futures_util::StreamExt;
-use ratatui::{
-    Frame,
-    layout::{Constraint, Layout},
-    style::Stylize,
-    text::{self},
-    widgets::{Row, Table},
-};
 use reqwest_websocket::Message;
 use timer::Timer;
 use tokio::time;
@@ -23,8 +13,6 @@ mod rpc;
 mod timer;
 mod ui;
 mod ws;
-
-type AppStateItem = (Instant, RxMsgs);
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
@@ -44,8 +32,6 @@ async fn async_main() {
     ws::subscribe(&mut tx, "newHeads").await;
     let mut timer = timer::Timer::new();
 
-    let ui_state = Arc::<RwLock<Vec<AppStateItem>>>::default();
-
     let mut stop = false;
     let mut interval = time::interval(Duration::from_secs(1));
     while !stop {
@@ -55,19 +41,17 @@ async fn async_main() {
               stop = ui::is_key_quit(&key_str);
             }
 
-             _ = interval.tick() => {
-                 tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
-             },
+             _ = interval.tick() =>  tui.draw(&timer),
 
             Some(message) = rx.next() => {
              match select_message(&mut timer, message) {
                 Some(msg) => {
-                  let mut rows = ui_state.write().unwrap();
+                  let mut rows = tui.state.write().unwrap();
                   rows.push((Instant::now(), msg));
                 },
                 None => (),
              };
-             tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
+             tui.draw(&timer);
              timer.reset_after_seconds(10);
             }
         }
@@ -188,46 +172,4 @@ fn select_message(
     } else {
         None
     }
-}
-
-fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<AppStateItem>>>, timer: &timer::Timer) {
-    let items = state.read().unwrap();
-    let times = timer.report();
-    let title = text::Line::from(format!(
-        "{} unconfirmed eth transactions. {} kb/sec {} msg/sec",
-        items.len(),
-        times.0,
-        times.1
-    ))
-    .centered()
-    .bold();
-    let headers = text::Line::from(format!(
-        "{:5} {:42} {:42} {:5} {:8}",
-        "age", "to", "from", "eth", "call"
-    ));
-    let vertical = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-    ]);
-    let [title_area, header_area, body_area] = vertical.areas(frame.area());
-
-    let last_bit = items.len().saturating_sub(body_area.height as usize);
-    let rows = items[last_bit..]
-        .iter()
-        .map(|item| {
-            Row::new(vec![format!(
-                "{:.3} {}",
-                Instant::now().duration_since(item.0).as_millis() as f64 / 1000.0,
-                item.1.to_string()
-            )])
-        })
-        .collect::<Vec<Row>>();
-
-    let widths = [Constraint::Max(body_area.width)];
-    let table = Table::new(rows, widths);
-
-    frame.render_widget(title, title_area);
-    frame.render_widget(headers, header_area);
-    frame.render_widget(table, body_area);
 }
