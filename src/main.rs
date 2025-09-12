@@ -33,30 +33,31 @@ async fn async_main() {
     let mut timer = timer::Timer::new();
 
     let mut stop = false;
-    let mut interval = time::interval(Duration::from_secs(1));
+    let mut one_second = time::interval(Duration::from_secs(1));
     while !stop {
         tokio::select! {
             Some(evt) = tui.reader.next() => {
-              let key_str = ui::key_in(evt.unwrap()) ;
-              stop = ui::is_key_quit(&key_str);
-            }
+                let key_str = ui::key_in(evt.unwrap()) ;
+                stop = ui::is_key_quit(&key_str);
+            },
 
-             _ = interval.tick() =>  tui.draw(&timer),
+             _ = one_second.tick() =>  tui.draw(&timer),
 
             Some(message) = rx.next() => {
-             match select_message(&mut timer, message) {
-                Some(msg) => {
-                  let mut rows = tui.state.write().unwrap();
-                  rows.push((Instant::now(), msg));
-                },
-                None => (),
-             };
-             tui.draw(&timer);
-             timer.reset_after_seconds(10);
+                match parse_message(&mut timer, message) {
+                    Some(msg) => good_msg(&mut tui, &mut timer, msg),
+                    None => (),
+             }
             }
         }
     }
     disable_raw_mode().unwrap(); // ratatui::restore()
+}
+
+fn good_msg(tui: &mut UI, timer: &mut Timer, msg: RxMsgs) {
+    tui.add_msg(msg);
+    tui.draw(&timer);
+    timer.reset_after_seconds(10);
 }
 
 #[derive(serde::Deserialize)]
@@ -144,7 +145,7 @@ fn test_match_fn_signature() {
     );
 }
 
-fn select_message(
+fn parse_message(
     timer: &mut Timer,
     message: Result<Message, reqwest_websocket::Error>,
 ) -> Option<RxMsgs> {

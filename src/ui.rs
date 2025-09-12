@@ -42,6 +42,11 @@ impl UI {
             .draw(|frame| render(items, frame, timer))
             .unwrap();
     }
+
+    pub fn add_msg(self: &mut Self, msg: RxMsgs) {
+        let mut rows = self.state.write().unwrap();
+        rows.push((Instant::now(), msg));
+    }
 }
 
 fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &timer::Timer) {
