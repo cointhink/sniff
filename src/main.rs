@@ -5,7 +5,7 @@ use std::{
 
 use alloy_primitives::{U256, utils::format_units};
 use crossterm::{
-    event::{Event, EventStream, KeyCode, KeyModifiers},
+    event::{Event, KeyCode, KeyModifiers},
     terminal::disable_raw_mode,
 };
 use futures_util::StreamExt;
@@ -19,10 +19,12 @@ use ratatui::{
 use reqwest_websocket::Message;
 use timer::Timer;
 use tokio::time;
+use ui::UI;
 
 mod config;
 mod rpc;
 mod timer;
+mod ui;
 mod ws;
 
 type AppStateItem = (Instant, RxMsgs);
@@ -37,12 +39,8 @@ fn main() {
 
 #[tokio::main]
 async fn async_main() {
-    let mut terminal = ratatui::init();
-    let mut reader = EventStream::new();
-
-    let mut interval = time::interval(Duration::from_secs(1));
-
     let config = config::CONFIG.get().unwrap();
+    let mut tui = UI::init();
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
 
     ws::subscribe(&mut tx, "newPendingTransactions").await;
@@ -52,9 +50,10 @@ async fn async_main() {
     let ui_state = Arc::<RwLock<Vec<AppStateItem>>>::default();
 
     let mut stop = false;
+    let mut interval = time::interval(Duration::from_secs(1));
     while !stop {
         tokio::select! {
-            Some(evt) = reader.next() => {
+            Some(evt) = tui.reader.next() => {
               let key =key_in(evt.unwrap()) ;
                 if key == "q" || key == "^c" {
                     stop = true
@@ -62,12 +61,12 @@ async fn async_main() {
             }
 
              _ = interval.tick() => {
-                 terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
+                 tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              },
 
             Some(message) = rx.next() => {
              select_message(&mut timer,&ui_state, message);
-             terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
+             tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
         }
