@@ -8,7 +8,7 @@ use crossterm::{
     event::{Event, EventStream, KeyCode, KeyModifiers},
     terminal::disable_raw_mode,
 };
-use futures_util::{SinkExt, StreamExt, stream::SplitSink};
+use futures_util::StreamExt;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -16,7 +16,7 @@ use ratatui::{
     text::{self},
     widgets::{Row, Table},
 };
-use reqwest_websocket::{Message, WebSocket};
+use reqwest_websocket::Message;
 use timer::Timer;
 use tokio::time;
 
@@ -45,8 +45,8 @@ async fn async_main() {
     let config = config::CONFIG.get().unwrap();
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
 
-    subscribe(&mut tx, "newPendingTransactions").await;
-    subscribe(&mut tx, "newHeads").await;
+    ws::subscribe(&mut tx, "newPendingTransactions").await;
+    ws::subscribe(&mut tx, "newHeads").await;
     let mut timer = timer::Timer::new();
 
     let ui_state = Arc::<RwLock<Vec<AppStateItem>>>::default();
@@ -136,11 +136,8 @@ fn match_fn_signature(hex_sig: &str) -> String {
         match &hex_sig[0..10] {
             "0xa9059cbb" => {
                 // erc20 transfer(address,uint256)
-                let wei = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
-                format!(
-                    "erc20 xfer {}",
-                    format_units(wei, "eth").unwrap()[0..5].to_string()
-                )
+                let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
+                format!("erc20 xfer {}", units)
             }
             _ => hex_sig.to_string(),
         }
@@ -252,16 +249,4 @@ fn key_in(event: Event) -> String {
         _ => (),
     }
     keystring
-}
-
-pub async fn subscribe(tx: &mut SplitSink<WebSocket, Message>, topic: &str) {
-    let topic = serde_json::Value::String(topic.to_string());
-    let full_tx = serde_json::Value::Bool(true);
-    let mut params = vec![&topic];
-    if topic == "newPendingTransactions" {
-        params.push(&full_tx);
-    };
-    let rpc_sub_json = rpc::call("eth_subscribe", params);
-    log::info!("{}", rpc_sub_json);
-    tx.send(Message::Text(rpc_sub_json)).await.unwrap();
 }
