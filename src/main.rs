@@ -54,10 +54,8 @@ async fn async_main() {
     while !stop {
         tokio::select! {
             Some(evt) = tui.reader.next() => {
-              let key =key_in(evt.unwrap()) ;
-                if key == "q" || key == "^c" {
-                    stop = true
-                }
+              let key_str = ui::key_in(evt.unwrap()) ;
+              stop = ui::key_quit(&key_str);
             }
 
              _ = interval.tick() => {
@@ -65,7 +63,7 @@ async fn async_main() {
              },
 
             Some(message) = rx.next() => {
-             select_message(&mut timer,&ui_state, message);
+             select_message(&mut timer,   &ui_state, message);
              tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
@@ -229,23 +227,4 @@ fn render(frame: &mut Frame, state: &Arc<RwLock<Vec<AppStateItem>>>, timer: &tim
     frame.render_widget(title, title_area);
     frame.render_widget(headers, header_area);
     frame.render_widget(table, body_area);
-}
-
-fn key_in(event: Event) -> String {
-    let mut keystring = String::new();
-    match event {
-        Event::Key(key) => {
-            if key.modifiers == KeyModifiers::CONTROL {
-                keystring.insert_str(0, "^")
-            }
-            match key.code {
-                KeyCode::Char(char) => {
-                    keystring.push(char);
-                }
-                _ => (),
-            }
-        }
-        _ => (),
-    }
-    keystring
 }
