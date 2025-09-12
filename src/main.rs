@@ -4,10 +4,7 @@ use std::{
 };
 
 use alloy_primitives::{U256, utils::format_units};
-use crossterm::{
-    event::{Event, KeyCode, KeyModifiers},
-    terminal::disable_raw_mode,
-};
+use crossterm::terminal::disable_raw_mode;
 use futures_util::StreamExt;
 use ratatui::{
     Frame,
@@ -63,7 +60,13 @@ async fn async_main() {
              },
 
             Some(message) = rx.next() => {
-             select_message(&mut timer,   &ui_state, message);
+             match select_message(&mut timer, message) {
+                Some(msg) => {
+                  let mut rows = ui_state.write().unwrap();
+                  rows.push((Instant::now(), msg));
+                },
+                None => (),
+             };
              tui.terminal.draw(|frame| render(frame, &ui_state, &timer)).unwrap();
              timer.reset_after_seconds(10);
             }
@@ -159,9 +162,8 @@ fn test_match_fn_signature() {
 
 fn select_message(
     timer: &mut Timer,
-    ui_state: &Arc<RwLock<Vec<AppStateItem>>>,
     message: Result<Message, reqwest_websocket::Error>,
-) {
+) -> Option<RxMsgs> {
     if let Message::Text(text) = message.unwrap() {
         timer.next_msg(text.len());
         log::logger().log(
@@ -175,15 +177,16 @@ fn select_message(
             .unwrap(); //RpcResponse
         match rpc_response.params {
             Some(params) => {
-                let mut rows = ui_state.write().unwrap();
                 match &params.result {
                     RxMsgs::UnconfirmedTx(_tx) => {}
                     RxMsgs::NewHeader(_header) => {}
                 };
-                rows.push((Instant::now(), params.result));
+                Some(params.result)
             }
-            None => (),
+            None => None,
         }
+    } else {
+        None
     }
 }
 
