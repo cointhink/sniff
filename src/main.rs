@@ -52,7 +52,7 @@ async fn async_main() {
         tokio::select! {
             Some(evt) = tui.reader.next() => {
               let key_str = ui::key_in(evt.unwrap()) ;
-              stop = ui::key_quit(&key_str);
+              stop = ui::is_key_quit(&key_str);
             }
 
              _ = interval.tick() => {

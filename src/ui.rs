@@ -33,6 +33,6 @@ pub fn key_in(event: Event) -> String {
     keystring
 }
 
-pub fn key_quit(key_str: &str) -> bool {
+pub fn is_key_quit(key_str: &str) -> bool {
     key_str == "q" || key_str == "^c"
 }
