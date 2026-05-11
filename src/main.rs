@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use alloy_primitives::{U256, utils::format_units};
 use crossterm::terminal::disable_raw_mode;
@@ -25,8 +25,8 @@ fn main() {
 #[tokio::main]
 async fn async_main() {
     let config = config::CONFIG.get().unwrap();
-    let mut tui = UI::init();
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
+    let mut tui = UI::init();
 
     ws::subscribe(&mut tx, "newPendingTransactions").await;
     ws::subscribe(&mut tx, "newHeads").await;
