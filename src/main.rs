@@ -45,7 +45,10 @@ async fn async_main() {
 
             Some(message) = rx.next() => {
                 match parse_message(&mut timer, message) {
-                    Some(msg) => good_msg(&mut tui, &mut timer, msg),
+                    Some(msg) => match msg {
+                        RxMsgs::TxOnly(id) => ws::get_tx_by_hash(&mut tx, &id).await,
+                        _ =>  good_msg(&mut tui, &mut timer, msg),
+                    }
                     None => (),
              }
             }
@@ -69,12 +72,14 @@ struct RpcResponse {
 enum RxMsgs {
     UnconfirmedTx(UnconfirmedTx),
     NewHeader(NewHeader),
+    TxOnly(String),
 }
 impl RxMsgs {
     fn to_string(self: &Self) -> String {
         match self {
             RxMsgs::UnconfirmedTx(tx) => tx.to_string(),
             RxMsgs::NewHeader(header) => header.to_string(),
+            RxMsgs::TxOnly(id) => id.to_owned(),
         }
     }
 }
@@ -165,6 +170,7 @@ fn parse_message(
                 match &params.result {
                     RxMsgs::UnconfirmedTx(_tx) => {}
                     RxMsgs::NewHeader(_header) => {}
+                    RxMsgs::TxOnly(_id) => {}
                 };
                 Some(params.result)
             }
