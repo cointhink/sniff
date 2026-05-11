@@ -9,15 +9,13 @@ use crate::rpc;
 pub async fn connect(
     url: &str,
 ) -> Result<(SplitSink<WebSocket, Message>, SplitStream<WebSocket>), Error> {
-    let websocket = reqwest::Client::default()
-        .get(url)
-        .upgrade()
-        .send()
-        .await?
-        .into_websocket()
-        .await?;
-
-    Ok(websocket.split())
+    match reqwest::Client::default().get(url).upgrade().send().await {
+        Ok(socket) => match socket.into_websocket().await {
+            Ok(ws) => Ok(ws.split()),
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn subscribe(tx: &mut SplitSink<WebSocket, Message>, topic: &str) {
