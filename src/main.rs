@@ -94,15 +94,15 @@ struct RpcNoticeParams {
 #[derive(serde::Deserialize)]
 #[serde(untagged)]
 enum RpcNoticeTypes {
-    UnconfirmedTx(UnconfirmedTx),
     SubscriptionResult(SubscriptionResult),
-    String(String),
+    BlockHeader(NewHeader),
+    TxId(String),
 }
 
 #[derive(serde::Deserialize)]
 struct RpcResponse {
     id: String,
-    result: RpcResponseTypes,
+    result: Option<RpcResponseTypes>,
 }
 
 #[derive(serde::Deserialize)]
@@ -180,7 +180,7 @@ fn match_fn_signature(hex_sig: &str) -> String {
                 let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
                 format!("erc20 xfer {}", units)
             }
-            _ => hex_sig.to_string(),
+            _ => format!("sig: {}", hex_sig.to_string()),
         }
     } else {
         hex_sig.to_string()
@@ -221,15 +221,18 @@ fn parse_message(
             RpcMsgs::RpcNotice(notice) => {
                 log::info!("checking response type");
                 match notice.params.result {
-                    RpcNoticeTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
-                    RpcNoticeTypes::String(id) => Some(RxMsgs::TxId(id.to_owned())),
+                    RpcNoticeTypes::TxId(tx) => Some(RxMsgs::TxId(tx)),
+                    RpcNoticeTypes::BlockHeader(header) => Some(RxMsgs::BlockHeader(header)),
                     RpcNoticeTypes::SubscriptionResult(_subscription_result) => None,
                 }
             }
             RpcMsgs::RpcResponse(response) => match response.result {
-                RpcResponseTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
-                RpcResponseTypes::BlockHeader(_header) => todo!(),
-                RpcResponseTypes::SubscriptionId(_tx_id) => None,
+                Some(result) => match result {
+                    RpcResponseTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
+                    RpcResponseTypes::BlockHeader(_header) => todo!(),
+                    RpcResponseTypes::SubscriptionId(_tx_id) => None,
+                },
+                None => None,
             },
         }
     } else {
