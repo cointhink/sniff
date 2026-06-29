@@ -1,1 +1,9 @@
-.ignore
+/config.yaml
+/.jj/
+/target/
+/logs/
+/tmp/
+/Cargo.lock
+/logs
+/tmp
+

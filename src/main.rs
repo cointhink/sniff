@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use alloy_primitives::{U256, utils::format_units};
+use alloy_primitives::{utils::format_units, U256};
 use crossterm::terminal::disable_raw_mode;
-use futures_util::StreamExt;
-use reqwest_websocket::Message;
+use futures_util::{stream::SplitSink, StreamExt};
+use reqwest_websocket::{Message, WebSocket};
 use timer::Timer;
 use tokio::time;
 use ui::UI;
@@ -36,25 +36,35 @@ async fn async_main() {
     let mut one_second = time::interval(Duration::from_secs(1));
     while !stop {
         tokio::select! {
-            Some(evt) = tui.reader.next() => {
-                let key_str = ui::key_in(evt.unwrap()) ;
-                stop = ui::is_key_quit(&key_str);
-            },
-
-             _ = one_second.tick() =>  tui.draw(&timer),
-
-            Some(message) = rx.next() => {
-                match parse_message(&mut timer, message) {
-                    Some(msg) => match msg {
-                        RxMsgs::TxId(id) => ws::get_tx_by_hash(&mut tx, &id).await,
-                        _ =>  good_msg(&mut tui, &mut timer, msg),
-                    }
-                    None => (),
-             }
-            }
+            Some(evt) = tui.reader.next() => do_key(&mut stop, evt),
+            Some(message) = rx.next() => do_msg(&mut tui, &mut tx, &mut timer, message).await,
+            _ = one_second.tick() =>  tui.draw(&timer),
         }
     }
     disable_raw_mode().unwrap(); // ratatui::restore()
+}
+
+fn do_key(stop: &mut bool, evt: Result<crossterm::event::Event, std::io::Error>) {
+    let key_str = ui::key_in(evt.unwrap());
+    *stop = ui::is_key_quit(&key_str);
+}
+
+async fn do_msg(
+    tui: &mut UI,
+    tx: &mut SplitSink<WebSocket, Message>,
+    timer: &mut Timer,
+    message: Result<Message, reqwest_websocket::Error>,
+) {
+    match parse_message(timer, message) {
+        Some(msg) => {
+            log::info!("");
+            match msg {
+                RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
+                _ => good_msg(tui, timer, msg),
+            }
+        }
+        None => (),
+    }
 }
 
 fn good_msg(tui: &mut UI, timer: &mut Timer, msg: RxMsgs) {
