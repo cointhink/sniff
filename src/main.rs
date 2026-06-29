@@ -57,7 +57,7 @@ async fn do_msg(
 ) {
     match parse_message(timer, message) {
         Some(msg) => {
-            log::info!("");
+            log::info!("parsing {:?}", msg.to_string());
             match msg {
                 RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
                 _ => good_msg(tui, timer, msg),
@@ -74,30 +74,65 @@ fn good_msg(tui: &mut UI, timer: &mut Timer, msg: RxMsgs) {
 }
 
 #[derive(serde::Deserialize)]
-struct RpcResponse {
-    params: Option<RpcParams>,
+#[serde(untagged)]
+enum RpcMsgs {
+    RpcNotice(RpcNotice),
+    RpcResponse(RpcResponse),
+}
+
+#[derive(serde::Deserialize)]
+struct RpcNotice {
+    method: String,
+    params: RpcNoticeParams,
+}
+
+#[derive(serde::Deserialize)]
+struct RpcNoticeParams {
+    subscription: String,
+    result: RpcNoticeTypes,
 }
 #[derive(serde::Deserialize)]
 #[serde(untagged)]
+enum RpcNoticeTypes {
+    UnconfirmedTx(UnconfirmedTx),
+    SubscriptionResult(SubscriptionResult),
+    String(String),
+}
+
+#[derive(serde::Deserialize)]
+struct RpcResponse {
+    id: String,
+    result: RpcResponseTypes,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RpcResponseTypes {
+    UnconfirmedTx(UnconfirmedTx),
+    BlockHeader(NewHeader),
+    SubscriptionId(String),
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
 enum RxMsgs {
+    SubscriptionResult(SubscriptionResult),
     UnconfirmedTx(UnconfirmedTx),
     BlockHeader(NewHeader),
     TxId(String),
 }
+
 impl RxMsgs {
     fn to_string(self: &Self) -> String {
         match self {
             RxMsgs::UnconfirmedTx(tx) => tx.to_string(),
             RxMsgs::BlockHeader(header) => header.to_string(),
             RxMsgs::TxId(id) => id.to_owned(),
+            RxMsgs::SubscriptionResult(_subscription_result) => "".to_owned(),
         }
     }
 }
 
-#[derive(serde::Deserialize)]
-struct RpcParams {
-    result: RxMsgs,
-}
 #[derive(serde::Deserialize)]
 struct NewHeader {
     number: String,
@@ -110,6 +145,12 @@ impl NewHeader {
         U256::from_str_radix(&self.number[2..], 16).unwrap()
     }
 }
+#[derive(serde::Deserialize)]
+struct SubscriptionResult {
+    subscription: String,
+    result: String,
+}
+
 #[derive(serde::Deserialize)]
 struct UnconfirmedTx {
     from: String,
@@ -171,20 +212,25 @@ fn parse_message(
                 .target("http")
                 .args(format_args!("{}", text))
                 .build(),
-        ); // this is a lot for one call to the logger
-        let rpc_response = serde_json::from_str::<RpcResponse>(&text)
+        );
+        log::info!("in: {}", text);
+        let rpc_response = serde_json::from_str::<RpcMsgs>(&text)
             .or_else(|err| -> Result<_, String> { panic!("{} {}", err, text) })
             .unwrap(); //RpcResponse
-        match rpc_response.params {
-            Some(params) => {
-                match &params.result {
-                    RxMsgs::UnconfirmedTx(_tx) => {}
-                    RxMsgs::BlockHeader(_header) => {}
-                    RxMsgs::TxId(_id) => {}
-                };
-                Some(params.result)
+        match rpc_response {
+            RpcMsgs::RpcNotice(notice) => {
+                log::info!("checking response type");
+                match notice.params.result {
+                    RpcNoticeTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
+                    RpcNoticeTypes::String(id) => Some(RxMsgs::TxId(id.to_owned())),
+                    RpcNoticeTypes::SubscriptionResult(_subscription_result) => None,
+                }
             }
-            None => None,
+            RpcMsgs::RpcResponse(response) => match response.result {
+                RpcResponseTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
+                RpcResponseTypes::BlockHeader(_header) => todo!(),
+                RpcResponseTypes::SubscriptionId(_tx_id) => None,
+            },
         }
     } else {
         None
