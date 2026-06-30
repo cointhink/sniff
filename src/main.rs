@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use alloy_primitives::{utils::format_units, U256};
+use alloy_primitives::{U256, utils::format_units};
 use crossterm::terminal::disable_raw_mode;
-use futures_util::{stream::SplitSink, StreamExt};
+use futures_util::{StreamExt, stream::SplitSink};
 use reqwest_websocket::{Message, WebSocket};
 use timer::Timer;
 use tokio::time;
@@ -127,8 +127,8 @@ impl RxMsgs {
         match self {
             RxMsgs::UnconfirmedTx(tx) => tx.to_string(),
             RxMsgs::BlockHeader(header) => header.to_string(),
-            RxMsgs::TxId(id) => id.to_owned(),
-            RxMsgs::SubscriptionResult(_subscription_result) => "".to_owned(),
+            RxMsgs::TxId(id) => format!("txid: {}", id.to_owned()),
+            RxMsgs::SubscriptionResult(_subscription_result) => "sub success".to_owned(),
         }
     }
 }
@@ -162,10 +162,10 @@ impl UnconfirmedTx {
     fn to_string(self: &Self) -> String {
         let value_wei = u128::from_str_radix(&self.value[2..], 16).unwrap();
         format!(
-            "{:42} {:42} {:5} {:8}",
+            "{:42} {:42} {:6} {:8}",
             self.from,
             self.to.clone().unwrap_or("- contract-creation".to_string()),
-            format_units(value_wei, 18).unwrap()[0..5].to_string(),
+            format_units(value_wei, 18).unwrap()[0..6].to_string(),
             match_fn_signature(&self.input),
         )
     }
@@ -180,10 +180,10 @@ fn match_fn_signature(hex_sig: &str) -> String {
                 let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
                 format!("erc20 xfer {}", units)
             }
-            _ => format!("sig: {}", hex_sig.to_string()),
+            _ => format!("unknown sig: {}", hex_sig.to_string()),
         }
     } else {
-        hex_sig.to_string()
+        format!("eth transfer")
     }
 }
 
