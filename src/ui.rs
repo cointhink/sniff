@@ -13,7 +13,7 @@ use ratatui::{
 };
 use reqwest::Url;
 
-use crate::{config, timer, RxMsgs};
+use crate::{config, timer, RxMsgs, State};
 
 pub struct UI {
     pub terminal: DefaultTerminal,
@@ -37,10 +37,10 @@ impl UI {
         }
     }
 
-    pub fn draw(self: &mut Self, timer: &timer::Timer) {
+    pub fn draw(self: &mut Self, state: &State, timer: &timer::Timer) {
         let items = self.state.read().unwrap();
         self.terminal
-            .draw(|frame| render(items, frame, timer))
+            .draw(|frame| render(items, frame, state, timer))
             .unwrap();
     }
 
@@ -50,7 +50,12 @@ impl UI {
     }
 }
 
-fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &timer::Timer) {
+fn render(
+    items: RwLockReadGuard<Vec<StateItem>>,
+    frame: &mut Frame,
+    state: &State,
+    timer: &timer::Timer,
+) {
     let config = config::CONFIG.get().unwrap();
     let times = timer.report();
     let title = text::Line::from(format!(
@@ -96,7 +101,20 @@ fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &tim
     let host = Url::parse(&config.geth_url).unwrap();
     frame.render_widget(host.host_str(), title_host_area);
     frame.render_widget(title, title_title_area);
-    frame.render_widget("[]", title_lights_area);
+    let state_line = format!(
+        "{} {}",
+        if state.pending_tx_sub.state {
+            "NewTx"
+        } else {
+            ""
+        },
+        if state.new_heads_sub.state {
+            "NewHead"
+        } else {
+            ""
+        },
+    );
+    frame.render_widget(state_line, title_lights_area);
     frame.render_widget(headers, header_area);
     frame.render_widget(table, body_area);
 }

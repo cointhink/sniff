@@ -74,8 +74,8 @@ impl NewHeader {
 }
 #[derive(serde::Deserialize)]
 pub(crate) struct SubscriptionResult {
-    subscription: String,
-    result: String,
+    pub(crate) id: String,
+    pub(crate) result: String,
 }
 
 #[derive(serde::Deserialize)]

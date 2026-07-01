@@ -24,6 +24,18 @@ fn main() {
     async_main();
 }
 
+#[derive(Default)]
+struct SubState {
+    id: String,
+    state: bool,
+}
+
+#[derive(Default)]
+struct State {
+    pending_tx_sub: SubState,
+    new_heads_sub: SubState,
+}
+
 #[tokio::main]
 async fn async_main() {
     let config = config::CONFIG.get().unwrap();
@@ -33,14 +45,17 @@ async fn async_main() {
     ws::subscribe(&mut tx, "newPendingTransactions").await;
     ws::subscribe(&mut tx, "newHeads").await;
     let mut timer = timer::Timer::new();
-
+    let mut state = State::default();
     let mut stop = false;
     let mut one_second = time::interval(Duration::from_secs(1));
     while !stop {
         tokio::select! {
             Some(evt) = tui.reader.next() => do_key(&mut stop, evt),
-            Some(message) = rx.next() => do_msg(&mut tui, &mut tx, &mut timer, message).await,
-            _ = one_second.tick() =>  tui.draw(&timer),
+            Some(message) = rx.next() => {
+                do_msg(&mut tui, &mut tx, &mut state, &mut timer, message).await;
+                tui.draw(&state, &timer)
+             },
+            _ = one_second.tick() =>  tui.draw(&state, &timer),
         }
     }
     disable_raw_mode().unwrap(); // ratatui::restore()
@@ -54,6 +69,7 @@ fn do_key(stop: &mut bool, evt: Result<crossterm::event::Event, std::io::Error>)
 async fn do_msg(
     tui: &mut UI,
     tx: &mut SplitSink<WebSocket, Message>,
+    state: &mut State,
     timer: &mut Timer,
     message: Result<Message, reqwest_websocket::Error>,
 ) {
@@ -62,6 +78,11 @@ async fn do_msg(
             log::info!("parsing {:?}", msg.to_string());
             match msg {
                 RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
+                RxMsgs::SubscriptionResult(sub) => {
+                    if sub.id == state.pending_tx_sub.id {
+                        state.pending_tx_sub.state = true;
+                    }
+                }
                 _ => good_msg(tui, timer, msg),
             }
         }
@@ -71,7 +92,6 @@ async fn do_msg(
 
 fn good_msg(tui: &mut UI, timer: &mut Timer, msg: RxMsgs) {
     tui.add_msg(msg);
-    tui.draw(&timer);
     timer.reset_after_seconds(10);
 }
 
@@ -97,7 +117,9 @@ fn parse_message(
                 match notice.params.result {
                     RpcNoticeTypes::TxId(tx) => Some(RxMsgs::TxId(tx)),
                     RpcNoticeTypes::BlockHeader(header) => Some(RxMsgs::BlockHeader(header)),
-                    RpcNoticeTypes::SubscriptionResult(_subscription_result) => None,
+                    RpcNoticeTypes::SubscriptionResult(subscription_result) => {
+                        Some(RxMsgs::SubscriptionResult(subscription_result))
+                    }
                 }
             }
             RpcMsgs::RpcResponse(response) => match response.result {
