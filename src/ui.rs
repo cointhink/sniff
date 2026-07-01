@@ -67,7 +67,7 @@ fn render(
     .centered()
     .bold();
     let headers = text::Line::from(format!(
-        "{:5} {:42} {:42} {:7} {:6} {:8}",
+        "{:5} {:42} {:42} {:7} {:5} {:8}",
         "age", "to", "from", "eth", "gas", "call"
     ));
     let vertical = Layout::vertical([

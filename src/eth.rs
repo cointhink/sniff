@@ -93,11 +93,11 @@ impl UnconfirmedTx {
         let value_wei = u128::from_str_radix(&self.value[2..], 16).unwrap();
         let gas_units = u128::from_str_radix(&self.gas[2..], 16).unwrap();
         format!(
-            "{:42} {:42} {:7} {:>6} {:8}",
+            "{:42} {:42} {:7} {:>5} {:8}",
             self.from,
             self.to.clone().unwrap_or("- contract-creation".to_string()),
             format_units(value_wei, 18).unwrap()[0..7].to_string(),
-            format!("{}", gas_units),
+            format!("{}k", gas_units / 1000),
             match_fn_signature(&self.input),
         )
     }
