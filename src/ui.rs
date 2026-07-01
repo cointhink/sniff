@@ -104,12 +104,12 @@ fn render(
     let state_line = format!(
         "{} {}",
         if state.pending_tx_sub.state {
-            "NewTx"
+            "[NewTx]"
         } else {
-            "{}"
+            "[]"
         },
         if state.new_heads_sub.state {
-            "NewHead"
+            "[NewHead]"
         } else {
             "[]"
         },

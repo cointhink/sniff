@@ -3,22 +3,22 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub struct RpcCall<'a> {
     jsonrpc: &'static str,
-    id: String,
+    id: &'a str,
     method: &'a str,
     params: Vec<serde_json::Value>,
 }
 
 impl<'a> RpcCall<'a> {
-    pub fn new(method: &'a str, params: Vec<serde_json::Value>) -> Self {
+    pub fn new(id: &'a str, method: &'a str, params: Vec<serde_json::Value>) -> Self {
         Self {
             jsonrpc: "2.0",
-            id: Self::new_id(),
+            id: id,
             method,
             params,
         }
     }
 
-    fn new_id() -> String {
+    pub(crate) fn new_id() -> String {
         const ID_LEN: usize = 4;
         let mut buf: [u8; ID_LEN] = [0; ID_LEN];
         for idx in 0..ID_LEN {
@@ -28,11 +28,11 @@ impl<'a> RpcCall<'a> {
     }
 }
 
-pub fn call(method: &str, params: Vec<&serde_json::Value>) -> String {
+pub fn call(id: &str, method: &str, params: Vec<&serde_json::Value>) -> String {
     let jparams: Vec<serde_json::Value> = params
         .iter()
         .map(|x| serde_json::to_value(x).unwrap())
         .collect();
-    let call = RpcCall::new(method, jparams);
+    let call = RpcCall::new(id, method, jparams);
     serde_json::to_string(&call).unwrap()
 }

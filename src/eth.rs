@@ -43,6 +43,7 @@ pub(crate) enum RpcResponseTypes {
 #[derive(serde::Deserialize)]
 #[serde(untagged)]
 pub(crate) enum RxMsgs {
+    SubStart(String, String),
     SubscriptionResult(SubscriptionResult),
     UnconfirmedTx(UnconfirmedTx),
     BlockHeader(NewHeader),
@@ -56,6 +57,7 @@ impl RxMsgs {
             RxMsgs::BlockHeader(header) => header.to_string(),
             RxMsgs::TxId(id) => format!("txid: {}", id.to_owned()),
             RxMsgs::SubscriptionResult(_subscription_result) => "sub success".to_owned(),
+            RxMsgs::SubStart(_, _) => "".to_owned(),
         }
     }
 }

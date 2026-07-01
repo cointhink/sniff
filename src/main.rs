@@ -26,6 +26,7 @@ fn main() {
 
 #[derive(Default)]
 struct SubState {
+    tx_id: String,
     id: String,
     state: bool,
 }
@@ -41,13 +42,14 @@ async fn async_main() {
     let config = config::CONFIG.get().unwrap();
     let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
     let mut tui = UI::init();
-
-    ws::subscribe(&mut tx, "newPendingTransactions").await;
-    ws::subscribe(&mut tx, "newHeads").await;
     let mut timer = timer::Timer::new();
     let mut state = State::default();
     let mut stop = false;
     let mut one_second = time::interval(Duration::from_secs(1));
+
+    state.pending_tx_sub.tx_id = ws::subscribe(&mut tx, "newPendingTransactions").await;
+    state.new_heads_sub.tx_id = ws::subscribe(&mut tx, "newHeads").await;
+
     while !stop {
         tokio::select! {
             Some(evt) = tui.reader.next() => do_key(&mut stop, evt),
@@ -78,7 +80,16 @@ async fn do_msg(
             RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
             RxMsgs::SubscriptionResult(sub) => {
                 log::info!("parsing sub response {}", sub.id);
-                if sub.id == state.pending_tx_sub.id {
+                if sub.id == state.pending_tx_sub.id {}
+            }
+            RxMsgs::SubStart(tx_id, sub_id) => {
+                log::info!("sub START {} {}", tx_id, sub_id);
+                if tx_id == state.new_heads_sub.tx_id {
+                    state.new_heads_sub.id = sub_id.to_owned();
+                    state.new_heads_sub.state = true;
+                }
+                if tx_id == state.pending_tx_sub.tx_id {
+                    state.pending_tx_sub.id = sub_id.to_owned();
                     state.pending_tx_sub.state = true;
                 }
             }
@@ -124,7 +135,9 @@ fn parse_message(
                 Some(result) => match result {
                     RpcResponseTypes::UnconfirmedTx(tx) => Some(RxMsgs::UnconfirmedTx(tx)),
                     RpcResponseTypes::BlockHeader(_header) => todo!(),
-                    RpcResponseTypes::SubscriptionId(_tx_id) => None,
+                    RpcResponseTypes::SubscriptionId(tx_id) => {
+                        Some(RxMsgs::SubStart(response.id, tx_id))
+                    }
                 },
                 None => None,
             },
