@@ -5,14 +5,15 @@ use std::{
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use ratatui::{
-    DefaultTerminal, Frame,
     layout::{Constraint, Layout},
     style::Stylize,
     text,
     widgets::{Row, Table},
+    DefaultTerminal, Frame,
 };
+use reqwest::Url;
 
-use crate::{RxMsgs, timer};
+use crate::{config, timer, RxMsgs};
 
 pub struct UI {
     pub terminal: DefaultTerminal,
@@ -50,6 +51,7 @@ impl UI {
 }
 
 fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &timer::Timer) {
+    let config = config::CONFIG.get().unwrap();
     let times = timer.report();
     let title = text::Line::from(format!(
         "{} unconfirmed eth transactions. {} kb/sec {} msg/sec",
@@ -69,6 +71,12 @@ fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &tim
         Constraint::Fill(1),
     ]);
     let [title_area, header_area, body_area] = vertical.areas(frame.area());
+    let title_layout = Layout::horizontal([
+        Constraint::Ratio(1, 3),
+        Constraint::Ratio(1, 3),
+        Constraint::Ratio(1, 3),
+    ]);
+    let [title_host_area, title_title_area, title_lights_area] = title_layout.areas(title_area);
 
     let last_bit = items.len().saturating_sub(body_area.height as usize);
     let rows = items[last_bit..]
@@ -85,7 +93,10 @@ fn render(items: RwLockReadGuard<Vec<StateItem>>, frame: &mut Frame, timer: &tim
     let widths = [Constraint::Max(body_area.width)];
     let table = Table::new(rows, widths);
 
-    frame.render_widget(title, title_area);
+    let host = Url::parse(&config.geth_url).unwrap();
+    frame.render_widget(host.host_str(), title_host_area);
+    frame.render_widget(title, title_title_area);
+    frame.render_widget("[]", title_lights_area);
     frame.render_widget(headers, header_area);
     frame.render_widget(table, body_area);
 }
