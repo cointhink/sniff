@@ -40,7 +40,9 @@ struct State {
 #[tokio::main]
 async fn async_main() {
     let config = config::CONFIG.get().unwrap();
-    let (mut tx, mut rx) = ws::connect(&config.geth_url).await.unwrap();
+    let (mut tx, mut rx) = ws::connect(&config.geth_url)
+        .await
+        .unwrap_or_else(|err| panic!("{} for \"{}\"", err, config.geth_url));
     let mut tui = UI::init();
     let mut timer = timer::Timer::new();
     let mut state = State::default();
