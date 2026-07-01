@@ -19,7 +19,7 @@ mod ws;
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     config::setup(config::FILENAME);
-    log::info!("scoop loaded {}", config::path(config::FILENAME));
+    log::info!("config loaded {}", config::path(config::FILENAME));
 
     async_main();
 }
@@ -74,18 +74,16 @@ async fn do_msg(
     message: Result<Message, reqwest_websocket::Error>,
 ) {
     match parse_message(timer, message) {
-        Some(msg) => {
-            log::info!("parsing {:?}", msg.to_string());
-            match msg {
-                RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
-                RxMsgs::SubscriptionResult(sub) => {
-                    if sub.id == state.pending_tx_sub.id {
-                        state.pending_tx_sub.state = true;
-                    }
+        Some(msg) => match msg {
+            RxMsgs::TxId(id) => ws::get_tx_by_hash(tx, &id).await,
+            RxMsgs::SubscriptionResult(sub) => {
+                log::info!("parsing sub response {}", sub.id);
+                if sub.id == state.pending_tx_sub.id {
+                    state.pending_tx_sub.state = true;
                 }
-                _ => good_msg(tui, timer, msg),
             }
-        }
+            _ => good_msg(tui, timer, msg),
+        },
         None => (),
     }
 }

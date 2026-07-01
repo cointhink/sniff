@@ -106,12 +106,12 @@ fn render(
         if state.pending_tx_sub.state {
             "NewTx"
         } else {
-            ""
+            "{}"
         },
         if state.new_heads_sub.state {
             "NewHead"
         } else {
-            ""
+            "[]"
         },
     );
     frame.render_widget(state_line, title_lights_area);

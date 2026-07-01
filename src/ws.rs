@@ -26,7 +26,6 @@ pub async fn subscribe(tx: &mut SplitSink<WebSocket, Message>, topic: &str) {
         params.push(&full_tx);
     };
     let rpc_sub_json = rpc::call("eth_subscribe", params);
-    log::info!("out: {}", rpc_sub_json);
     tx.send(Message::Text(rpc_sub_json)).await.unwrap();
 }
 
@@ -35,6 +34,5 @@ pub async fn get_tx_by_hash(tx: &mut SplitSink<WebSocket, Message>, hash: &str) 
     let hash_str = serde_json::Value::String(hash.to_owned());
     let params = vec![&hash_str];
     let rpc_json = rpc::call("eth_getTransactionByHash", params);
-    log::info!("out: {}", rpc_json);
     tx.send(Message::Text(rpc_json)).await.unwrap();
 }
