@@ -104,13 +104,31 @@ impl UnconfirmedTx {
 }
 
 fn match_fn_signature(hex_sig: &str) -> String {
+    // todo: curl https://raw.githubusercontent.com/ethereum-lists/4bytes/master/signatures/e3ee160e
     // U256::from_be_slice(&hex::decode(hex_sig[8..40].to_string()).unwrap());
     if hex_sig.len() >= 10 {
         match &hex_sig[0..10] {
             "0xa9059cbb" => {
-                // erc20 transfer(address,uint256)
+                // erc20 transfer(address to,uint256 value)
                 let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
                 format!("erc20 xfer {}", units)
+            }
+
+            "0x095ea7b3" => {
+                // erc20 approve(address spender, uint256 value)
+                let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
+                format!("erc20 approve {}", units)
+            }
+
+            "0x128acb08" => {
+                // uniswap v3 swap(address,bool,int256,uint160,bytes)
+                let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
+                format!("uniswapv3 swap {}", units)
+            }
+            "0x090f344e" => {
+                // uniswap v2 swap(uint,uint,address,bytes)
+                let units = U256::from_str_radix(&hex_sig[74..138], 16).unwrap();
+                format!("uniswapv2 swap {}", units)
             }
             _ => format!("unknown sig: {}", hex_sig.to_string()),
         }
